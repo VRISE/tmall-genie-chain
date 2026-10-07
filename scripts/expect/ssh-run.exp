@@ -1,0 +1,15 @@
+#!/usr/bin/expect -f
+# 给 box-run.sh 用：把 base64 文件里的脚本送到盒子上跑，输出落 /tmp/qoder-out.txt 再取回。
+# 密码走 BOX_PASS 环境变量（box-run.sh 从 ~/.config/llm-bridge/box.pass 读），别写死。
+set timeout 900
+set box [lindex $argv 0]
+set b64 [lindex $argv 1]
+set pass $env(BOX_PASS)
+spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
+  $box "echo [exec cat $b64] | base64 -d | bash > /tmp/qoder-out.txt 2>&1; true"
+expect {
+  -re "(P|p)assword:" { send "$pass\r"; exp_continue }
+  eof
+}
+catch wait result
+exit [lindex $result 3]

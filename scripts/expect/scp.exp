@@ -1,0 +1,13 @@
+#!/usr/bin/expect -f
+# 给 box-run.sh 用：scp 双向（源在前目标在后，跟 scp 一样）。密码走 BOX_PASS 环境变量。
+set timeout 600
+set src [lindex $argv 0]
+set dst [lindex $argv 1]
+set pass $env(BOX_PASS)
+spawn scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -r $src $dst
+expect {
+  -re "(P|p)assword:" { send "$pass\r"; exp_continue }
+  eof
+}
+catch wait result
+exit [lindex $result 3]

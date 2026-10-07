@@ -1,0 +1,26 @@
+# 凭据：一条都不许进仓库
+*.env
+!*.env.example
+migpt.env
+.env
+.mi.json
+*.key
+*.pass
+key.txt
+dy_cookies.txt
+bridge.key
+doubao_session*.json
+douyin_*.json
+douyin_ttwid
+doubao_convs.json
+verify_pending.json
+xiaomi_session.json
+debug.keystore
+# 运行时产物
+__pycache__/
+*.pyc
+play-history.jsonl
+*.log
+*.mp3
+*.wav
+shots/

@@ -1,0 +1,10 @@
+{
+  "sessionId": "b112a091-1523-4d2d-8059-e09461dafd74",
+  "skillName": "小盒管家",
+  "intentName": "default",
+  "utterance": "两只小狗，宇宙有多大",
+  "requestData": {"userOpenId": "XXXX==", "deviceOpenId": "YYYY==", "city": "杭州"},
+  "slotEntities": [],
+  "requestId": "20260927165000000-000000002",
+  "skillSession": {"skillSessionId": "s-2", "newSession": true}
+}

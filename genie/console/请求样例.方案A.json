@@ -1,0 +1,13 @@
+{
+  "sessionId": "b112a091-1523-4d2d-8059-e09461dafd73",
+  "skillName": "小盒管家",
+  "intentName": "看视频",
+  "utterance": "给我看一下初一的数学视频",
+  "requestData": {"userOpenId": "XXXX==", "deviceOpenId": "YYYY==", "city": "杭州"},
+  "slotEntities": [
+    {"intentParameterName": "grade", "originalValue": "初一", "standardValue": "初一", "liveTime": 0},
+    {"intentParameterName": "subject", "originalValue": "数学", "standardValue": "数学", "liveTime": 0}
+  ],
+  "requestId": "20260927165000000-000000001",
+  "skillSession": {"skillSessionId": "s-1", "newSession": true}
+}

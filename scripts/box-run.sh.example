@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# 在盒子上跑一段脚本，输出原样取回来；顺便能双向 scp。
+#
+#   ~/dev/fly-bridge/armv7/box-run.sh 'uptime; systemctl is-active karaoke'
+#   ~/dev/fly-bridge/armv7/box-run.sh put ./gst_play.py /root/fly/gst_play.py
+#   ~/dev/fly-bridge/armv7/box-run.sh get /tmp/qoder-out.txt ./out.txt
+#
+# 密码只从 ~/.config/llm-bridge/box.pass 读（0600），不进命令行、不进日志。
+# 为什么要绕一圈 base64 + 落盘再 scp：中文输出直接在 ssh 的 tty 上会被过滤掉，
+# 而 `bash -lc {…}` 那种写法会被 zsh 的花括号扩展咬一口。
+set -eu
+PASSFILE=~/.config/llm-bridge/box.pass
+BOX=${BOX:-root@127.0.0.1}   # 在盒子终端里跑就默认本机；跨机就 BOX=root@<盒子IP>
+HERE=$(cd "$(dirname "$0")" && pwd)
+[ -f "$PASSFILE" ] || { echo "没有 $PASSFILE（盒子 root 密码，只放这一份，别写进脚本）"; exit 1; }
+export BOX_PASS=$(cat "$PASSFILE")
+
+run_remote() { # $1 = 要在盒子上跑的脚本文本
+  local work=$2
+  printf '%s\n' "$1" > "$work/cmd.b64.tmp"
+  base64 < "$work/cmd.b64.tmp" | tr -d '\n' > "$work/cmd.b64"
+  expect "$HERE/expect/ssh-run.exp" "$BOX" "$work/cmd.b64" >/dev/null
+  expect "$HERE/expect/scp.exp" "$BOX:/tmp/qoder-out.txt" "$work/out.txt" >/dev/null
+  cat "$work/out.txt"
+}
+
+case "${1:-}" in
+  put) expect "$HERE/expect/scp.exp" "$2" "$BOX:$3" >/dev/null; echo "送过去了: $3" ;;
+  get) expect "$HERE/expect/scp.exp" "$BOX:$2" "$3" >/dev/null; echo "取回来了: $3" ;;
+  "") echo "用法: $0 '<要在盒子上跑的脚本>' | put <本地> <远端> | get <远端> <本地>"; exit 1 ;;
+  *) work=$(mktemp -d); trap 'rm -rf "$work"' EXIT; run_remote "$*" "$work" ;;
+esac

@@ -1,0 +1,18 @@
+[Unit]
+Description=豆包反代门（局域网 :7790，OpenAI 兼容）
+After=doubao-server.service
+Requires=doubao-server.service
+
+[Service]
+Type=simple
+WorkingDirectory=/root/fly
+Environment=DOUBAO_REPO=/root/fly
+ExecStart=/usr/bin/python3 /root/fly/llm_bridge.py --host 0.0.0.0 --port 7790 --backend doubao
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/llm-bridge.log
+StandardError=append:/var/log/llm-bridge.log
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

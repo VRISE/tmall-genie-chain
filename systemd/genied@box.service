@@ -1,0 +1,19 @@
+[Unit]
+Description=天猫精灵后台（装在 42 这台：豆包和 HDMI 出屏都在这台机器上）
+After=network-online.target llm-bridge.service
+
+[Service]
+Environment=GENIE_PORT=8092
+Environment=LLM_URL=http://192.168.5.42:7790/v1
+Environment=LLM_KEY_FILE=/root/.config/llm-bridge/bridge.key
+Environment=GENIE_TV_URL=http://127.0.0.1:7799/tv
+Environment=GENIE_VERIFY=/etc/genie/aligenie
+Environment=GENIE_DATA=/var/lib/genie42
+Environment=GENIE_OFFLINE_DIR=/var/lib/genie42/offline
+ExecStart=/usr/bin/python3 /opt/genie42/genied.py
+Restart=always
+RestartSec=2
+User=root
+
+[Install]
+WantedBy=multi-user.target
