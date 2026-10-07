@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import json
 import os
 import queue
 import statistics
@@ -16,6 +17,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.request
 import wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -30,6 +32,9 @@ PRE = 8              # 触发前留 0.4s，别吃字头
 TAIL = 24            # 静音 1.2s 算一句说完
 MIN_LEN = 0.3
 GATE_MULT = 4.0
+# 本地唤醒词：故意不跟「天猫精灵/花生同学/松鼠同学」撞，两条链各管各的
+WAKE = [w for w in os.environ.get("LISTEN_WAKE", "小松鼠").split(",") if w]
+BOX_LOCAL = os.environ.get("LISTEN_BOX", "http://192.168.5.42:8092/local")
 
 
 def log(line: str) -> None:
@@ -41,10 +46,11 @@ def log(line: str) -> None:
 
 def transcribe(path: str) -> str:
     base = path[:-4]
+    # stderr 里偶有非 UTF-8 字节，text=True 解码会抛 UnicodeDecodeError 把转写线程整个打死
     subprocess.run([BIN, "-m", MODEL, "-f", path, "-l", "zh", "-t", "8",
                     "--prompt", "以下是普通话的句子。",
                     "-sns", "false", "-ml", "0", "-otxt", "-of", base],
-                   capture_output=True, text=True)
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         with open(base + ".txt") as f:
             return " ".join(x.strip() for x in f if x.strip())
@@ -52,17 +58,56 @@ def transcribe(path: str) -> str:
         return ""
 
 
+def route(text: str) -> None:
+    """本地唤醒词 → 整句原话送给盒子派活。天猫精灵只认枚举，我们自己的耳朵没有这个限制。"""
+    for w in WAKE:
+        i = text.find(w)
+        if i < 0:
+            continue
+        cmd = text[i + len(w):].strip(" ，,。.!！?？、")
+        if not cmd:
+            continue
+        log(f"本地唤醒 → 送给盒子「{cmd}」")
+        # 盒子上这一腿可能要点时间（找片子/问豆包），别堵住后面句子的转写
+        threading.Thread(target=_post, args=(cmd,), daemon=True).start()
+        return
+
+
+def _post(cmd: str) -> None:
+    """盒子回一句该念的话，就由 Mac 的喇叭念出来（本地这条链没有平台替我们发声）。"""
+    # urllib 默认会读 macOS 系统代理，走 Clash 到 192.168.5.x 会撞 502 —— 局域网必须直连
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(
+                urllib.request.Request(
+                    BOX_LOCAL, data=json.dumps({"说": cmd}).encode(),
+                    headers={"Content-Type": "application/json"}), timeout=20) as r:
+            out = json.loads(r.read().decode("utf-8", "replace"))
+        say = (out.get("念") or "").strip()
+        if say:
+            log(f"盒子回「{say}」（{out.get('干')}）")
+            subprocess.run(["say", "-v", "Tingting", "-r", "160", say], check=False)
+    except Exception as e:  # noqa: BLE001 - 盒子不在也不能把转写线程带下去
+        log(f"送盒子失败：{type(e).__name__}: {e}")
+
+
 def worker(q: "queue.Queue") -> None:
     while True:
         path, seq = q.get()
-        text = transcribe(path)
-        log(f"听到「{text}」" if text else f"(一段杂音，没认出字 {os.path.basename(path)})")
-        for ext in (".txt", ".json", ".vtt"):
-            try:
-                os.remove(path[:-4] + ext)
-            except OSError:
-                pass
-        q.task_done()
+        try:
+            text = transcribe(path)
+            log(f"听到「{text}」" if text else f"(一段杂音，没认出字 {os.path.basename(path)})")
+            if text:
+                route(text)
+        except Exception as e:  # noqa: BLE001 - 一段音频出错不能把耳朵弄聋
+            log(f"转写炸了：{type(e).__name__}: {e}")
+        finally:
+            for ext in (".txt", ".json", ".vtt"):
+                try:
+                    os.remove(path[:-4] + ext)
+                except OSError:
+                    pass
+            q.task_done()
 
 
 def dump(frames, seq) -> str | None:
